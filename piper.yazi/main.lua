@@ -2,13 +2,17 @@
 
 local M = {}
 
-local function fail(job, s) ya.preview_widget(job, ui.Text.parse(s):area(job.area):wrap(ui.Wrap.YES)) end
+local function fail(job, s)
+	ya.preview_widget(job, ui.Text.parse(s):area(job.area):wrap(ui.Wrap.YES))
+end
 
 function M:peek(job)
 	local child, err = Command("sh")
 		:arg({ "-c", job.args[1], "sh", tostring(job.file.url) })
 		:env("w", job.area.w)
 		:env("h", job.area.h)
+		:env("start", job.skip or 0)
+		:env("end", (job.skip or 0) + job.area.h)
 		:stdout(Command.PIPED)
 		:stderr(Command.PIPED)
 		:spawn()
@@ -17,33 +21,41 @@ function M:peek(job)
 		return fail(job, "sh: " .. err)
 	end
 
-	local limit = job.area.h
 	local i, outs, errs = 0, {}, {}
-	repeat
+	while true do
 		local next, event = child:read_line()
+
 		if event == 1 then
 			errs[#errs + 1] = next
 		elseif event ~= 0 then
 			break
 		end
-
+		outs[#outs + 1] = next
 		i = i + 1
-		if i > job.skip then
-			outs[#outs + 1] = next
-		end
-	until i >= job.skip + limit
+	end
 
 	child:start_kill()
 	if #errs > 0 then
 		fail(job, table.concat(errs, ""))
-	elseif job.skip > 0 and i < job.skip + limit then
-		ya.emit("peek", { math.max(0, i - limit), only_if = job.file.url, upper_bound = true })
 	else
 		ya.preview_widget(job, M.format(job, outs))
 	end
 end
 
-function M:seek(job) require("code"):seek(job) end
+function M:seek(job)
+	local h = cx.active.current.hovered
+	if not h or h.url ~= job.file.url then
+		return
+	end
+
+	local step = math.floor(job.units * job.area.h / 10)
+	step = step == 0 and ya.clamp(-1, job.units, 1) or step
+
+	ya.emit("peek", {
+		math.max(0, cx.active.preview.skip + step),
+		only_if = job.file.url,
+	})
+end
 
 function M.format(job, lines)
 	local format = job.args.format
@@ -57,11 +69,11 @@ function M.format(job, lines)
 
 		local icon = File({
 			url = Url(lines[i]),
-			cha = Cha { kind = lines[i]:sub(-1) == "/" and 1 or 0 },
+			cha = Cha({ kind = lines[i]:sub(-1) == "/" and 1 or 0 }),
 		}):icon()
 
 		if icon then
-			lines[i] = ui.Line { ui.Span(" " .. icon.text .. " "):style(icon.style), lines[i] }
+			lines[i] = ui.Line({ ui.Span(" " .. icon.text .. " "):style(icon.style), lines[i] })
 		end
 	end
 	return ui.Text(lines):area(job.area)
