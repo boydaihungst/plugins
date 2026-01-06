@@ -7,7 +7,7 @@ local function fail(job, s) ya.preview_widget(job, ui.Text.parse(s):area(job.are
 function M:peek(job)
 	local child, err = Command("sh")
 		-- TODO: use `job.file.path` instead
-		:arg({ "-c", job.args[1], "sh", tostring(job.file.cache or job.file.url) })
+		:arg({ "-c", job.args[1], "sh", tostring(job.file.path or job.file.cache or job.file.url) })
 		:env("w", job.area.w)
 		:env("h", job.area.h)
 		:stdout(Command.PIPED)
