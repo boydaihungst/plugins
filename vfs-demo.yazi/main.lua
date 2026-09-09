@@ -100,7 +100,7 @@ function M:Open(job)
 		:read(demand.read)
 		:truncate(demand.truncate)
 		:write(demand.write)
-		:open(Url(p))
+		:open(Url(ya.clone(p)))
 	if open_err then
 		return nil, open_err
 	end
@@ -183,7 +183,7 @@ end
 
 function M:Copy(job)
 	local from, to = path(job.from.path), path(job.to)
-	local size, copy_err = fs.copy(Url(from), Url(to))
+	local size, copy_err = fs.copy(Url(from), Url(ya.clone(to)))
 	if not size then
 		return nil, copy_err
 	end
@@ -239,7 +239,7 @@ end
 function M:SetLen(job) return command("truncate", { "-s", tostring(job.size), tostring(path(job.url.path)) }) end
 
 function M:provide(job)
-	local ok, err = fs.create("dir_all", Url(root))
+	local ok, err = fs.create("dir_all", Url(ya.clone(root)))
 	if not ok then
 		return false, err
 	end
